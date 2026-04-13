@@ -67,18 +67,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     startBtn.disabled = true;
     errorText.textContent = '';
 
-    // Request mic permission from the popup (a foreground page with a user gesture)
-    // so Chrome's permission dialog surfaces correctly. Offscreen documents don't
-    // trigger the dialog reliably, causing "Permission dismissed" errors.
+    // Check mic permission state before doing anything.
+    // On macOS, calling getUserMedia() directly from an extension popup causes the
+    // popup to close (it loses focus when Chrome shows the permission sheet), which
+    // rejects the promise with "Permission dismissed". Instead we check the state:
+    //  - granted: proceed directly, no dialog needed
+    //  - prompt:  open a real tab (stays open during the dialog) for the one-time grant
+    //  - denied:  show a friendly error
+    let micState = 'prompt';
     try {
-      const testStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      testStream.getTracks().forEach(t => t.stop()); // release immediately — just needed the grant
-    } catch (err) {
-      errorText.textContent = err.message;
+      const perm = await navigator.permissions.query({ name: 'microphone' });
+      micState = perm.state;
+    } catch {
+      // permissions API unavailable — fall through and attempt recording anyway
+      micState = 'granted';
+    }
+
+    if (micState === 'denied') {
+      errorText.textContent = 'Microphone blocked. Open chrome://settings/content/microphone to allow access.';
       startBtn.disabled = false;
       return;
     }
 
+    if (micState === 'prompt') {
+      // Open a dedicated tab — unlike a popup, a tab stays open when the
+      // permission dialog appears, so the user can actually click Allow.
+      await chrome.tabs.create({ url: chrome.runtime.getURL('permissions.html') });
+      window.close();
+      return;
+    }
+
+    // Permission already granted — start recording immediately
     await sendMsg({ target: 'background', type: 'START_RECORDING', tabId: tab.id });
     tabInfoEl.textContent = tab.url.replace('https://meet.google.com/', '').split('?')[0];
     show(recordingView);
