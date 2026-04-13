@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Meet Recorder",
+  "version": "1.0.0",
+  "description": "Record Google Meet calls with mic and computer audio merged into one file",
+  "permissions": ["tabCapture", "offscreen", "downloads", "activeTab"],
+  "host_permissions": ["https://meet.google.com/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}
