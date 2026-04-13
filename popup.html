@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Meet Recorder</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 280px;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      padding: 20px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot-idle     { background: #585b70; }
+    .dot-recording { background: #f38ba8; animation: pulse 1.2s infinite; }
+    .dot-saved    { background: #a6e3a1; }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    .header-label { font-size: 13px; color: #a6adc8; }
+    .header-timer { margin-left: auto; font-variant-numeric: tabular-nums; color: #cdd6f4; }
+
+    .subtitle {
+      font-size: 12px;
+      color: #6c7086;
+      text-align: center;
+      margin-bottom: 16px;
+      min-height: 16px;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    button:not(:disabled):hover { opacity: .88; }
+
+    .btn-start { background: #6366f1; color: #fff; }
+    .btn-stop  { background: #f38ba8; color: #1e1e2e; }
+    .btn-new   { background: #6366f1; color: #fff; }
+
+    .audio-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 12px;
+      font-size: 11px;
+      color: #585b70;
+    }
+    .audio-row.active { color: #a6e3a1; }
+
+    .error-text {
+      font-size: 12px;
+      color: #f38ba8;
+      text-align: center;
+      margin-top: 8px;
+      min-height: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Idle view -->
+  <div id="idle-view">
+    <div class="header">
+      <div class="dot dot-idle"></div>
+      <span class="header-label">Meet Recorder</span>
+    </div>
+    <p class="subtitle" id="idle-hint">Open a Google Meet tab to record</p>
+    <button class="btn-start" id="start-btn" disabled>⏺ Start Recording</button>
+    <div class="audio-row">
+      <span>🎙 Microphone</span>
+      <span>🔊 Tab Audio</span>
+    </div>
+    <p class="error-text" id="error-text"></p>
+  </div>
+
+  <!-- Recording view -->
+  <div id="recording-view" style="display:none">
+    <div class="header">
+      <div class="dot dot-recording"></div>
+      <span class="header-label" style="color:#f38ba8">Recording…</span>
+      <span class="header-timer" id="timer">00:00</span>
+    </div>
+    <p class="subtitle" id="tab-info"></p>
+    <button class="btn-stop" id="stop-btn">⏹ Stop &amp; Save</button>
+    <div class="audio-row active">
+      <span>✓ Microphone active</span>
+      <span>✓ Tab audio active</span>
+    </div>
+  </div>
+
+  <!-- Saved view -->
+  <div id="saved-view" style="display:none">
+    <div class="header">
+      <div class="dot dot-saved"></div>
+      <span class="header-label" style="color:#a6e3a1">Saved!</span>
+    </div>
+    <p class="subtitle" id="saved-filename">Downloading to Downloads…</p>
+    <button class="btn-new" id="new-btn">⏺ Start New Recording</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
