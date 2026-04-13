@@ -64,8 +64,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   startBtn.addEventListener('click', async () => {
     if (!isMeetTab) return;
-    startBtn.disabled = true;  // prevent double-click
+    startBtn.disabled = true;
     errorText.textContent = '';
+
+    // Request mic permission from the popup (a foreground page with a user gesture)
+    // so Chrome's permission dialog surfaces correctly. Offscreen documents don't
+    // trigger the dialog reliably, causing "Permission dismissed" errors.
+    try {
+      const testStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      testStream.getTracks().forEach(t => t.stop()); // release immediately — just needed the grant
+    } catch (err) {
+      errorText.textContent = err.message;
+      startBtn.disabled = false;
+      return;
+    }
+
     await sendMsg({ target: 'background', type: 'START_RECORDING', tabId: tab.id });
     tabInfoEl.textContent = tab.url.replace('https://meet.google.com/', '').split('?')[0];
     show(recordingView);
