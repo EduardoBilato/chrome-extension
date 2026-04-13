@@ -52,6 +52,7 @@ async function startRecording(streamId) {
   const micSource = audioCtx.createMediaStreamSource(micStream);
   const destination = audioCtx.createMediaStreamDestination();
   tabSource.connect(destination);
+  tabSource.connect(audioCtx.destination); // keep tab audio audible during recording
   micSource.connect(destination);
 
   // Set up recorder
@@ -81,20 +82,27 @@ async function startRecording(streamId) {
       mediaRecorder = null;
       chunks = [];
 
-      // Trigger download directly from offscreen (avoids chrome.runtime.sendMessage 64 MB IPC limit)
+      // chrome.downloads is not available in offscreen documents — send the blob
+      // to background as a base64 data URL and let the service worker download it.
       // generateFilename() is loaded from utils.js via offscreen.html
       const filename = generateFilename();
-      const url = URL.createObjectURL(blob);
-      chrome.downloads.download({ url, filename, saveAs: false }, () => {
-        URL.revokeObjectURL(url);
-      });
-
-      // Notify background that recording is done (filename only, not the blob data)
-      chrome.runtime.sendMessage({
-        target: 'background',
-        type: 'RECORDING_COMPLETE',
-        filename,
-      });
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        chrome.runtime.sendMessage({
+          target: 'background',
+          type: 'RECORDING_COMPLETE',
+          data: reader.result, // base64 data URL
+          filename,
+        });
+      };
+      reader.onerror = () => {
+        chrome.runtime.sendMessage({
+          target: 'background',
+          type: 'RECORDING_ERROR',
+          error: 'Failed to read recording data',
+        });
+      };
+      reader.readAsDataURL(blob);
     } catch (err) {
       // Ensure background always learns recording stopped, even if download fails
       mediaRecorder = null;

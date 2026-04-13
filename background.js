@@ -38,11 +38,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return;
 
     case 'RECORDING_COMPLETE':
-      // Download is triggered directly by offscreen.js (avoids IPC size limits).
-      // Background only updates state here.
       state.isRecording = false;
       state.startTime = null;
       state.lastFilename = msg.filename;
+      // Trigger download from the service worker (offscreen docs lack chrome.downloads)
+      chrome.downloads.download({ url: msg.data, filename: msg.filename, saveAs: false });
       return;
 
     case 'RECORDING_ERROR':
