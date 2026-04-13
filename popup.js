@@ -9,6 +9,15 @@ function formatTime(totalSeconds) {
   return `${pad(m)}:${pad(s)}`;
 }
 
+// Helper to safely send messages to background; returns null if unavailable
+async function sendMsg(msg) {
+  try {
+    return await chrome.runtime.sendMessage(msg);
+  } catch {
+    return null; // background unavailable (service worker restarting)
+  }
+}
+
 let pollInterval = null;
 let stopping = false;
 
@@ -31,28 +40,34 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (isMeetTab) {
     startBtn.disabled = false;
-    idleHint.textContent = tab.url.replace('https://meet.google.com/', '');
+    idleHint.textContent = tab.url.replace('https://meet.google.com/', '').split('?')[0];
   }
 
   // Sync with background state (e.g. popup was closed and reopened during recording)
-  const bgState = await chrome.runtime.sendMessage({ target: 'background', type: 'GET_STATE' });
+  const bgState = await sendMsg({ target: 'background', type: 'GET_STATE' });
+  if (!bgState) return;
+
   if (bgState.error) {
     errorText.textContent = bgState.error;
   }
   if (bgState.isRecording) {
-    tabInfoEl.textContent = isMeetTab ? tab.url.replace('https://meet.google.com/', '') : '';
+    tabInfoEl.textContent = isMeetTab ? tab.url.replace('https://meet.google.com/', '').split('?')[0] : '';
     show(recordingView);
     if (bgState.startTime) {
       timerEl.textContent = formatTime(Math.floor((Date.now() - bgState.startTime) / 1000));
     }
     startPoll();
+  } else if (!bgState.isRecording && bgState.lastFilename) {
+    savedFilename.textContent = `${bgState.lastFilename} — downloading…`;
+    show(savedView);
   }
 
   startBtn.addEventListener('click', async () => {
     if (!isMeetTab) return;
+    startBtn.disabled = true;  // prevent double-click
     errorText.textContent = '';
-    await chrome.runtime.sendMessage({ target: 'background', type: 'START_RECORDING', tabId: tab.id });
-    tabInfoEl.textContent = tab.url.replace('https://meet.google.com/', '');
+    await sendMsg({ target: 'background', type: 'START_RECORDING', tabId: tab.id });
+    tabInfoEl.textContent = tab.url.replace('https://meet.google.com/', '').split('?')[0];
     show(recordingView);
     startPoll();
   });
@@ -60,7 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   stopBtn.addEventListener('click', async () => {
     stopping = true;
     stopBtn.disabled = true;
-    await chrome.runtime.sendMessage({ target: 'background', type: 'STOP_RECORDING' });
+    await sendMsg({ target: 'background', type: 'STOP_RECORDING' });
     // Poll detects isRecording → false and transitions to saved view
   });
 
@@ -70,10 +85,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     show(idleView);
   });
 
+  window.addEventListener('pagehide', () => {
+    if (pollInterval) clearInterval(pollInterval);
+  });
+
   function startPoll() {
     if (pollInterval) return;
     pollInterval = setInterval(async () => {
-      const s = await chrome.runtime.sendMessage({ target: 'background', type: 'GET_STATE' });
+      const s = await sendMsg({ target: 'background', type: 'GET_STATE' });
+      if (!s) return;
 
       // Show error if background reported one
       if (s.error && !s.isRecording) {
