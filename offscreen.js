@@ -66,34 +66,45 @@ async function startRecording(streamId) {
   };
 
   mediaRecorder.onstop = () => {
-    const blob = new Blob(chunks, { type: 'audio/webm' });
+    try {
+      const blob = new Blob(chunks, { type: 'audio/webm' });
 
-    // Stop all tracks to release mic indicator and hardware
-    tabStream.getTracks().forEach((t) => t.stop());
-    micStream.getTracks().forEach((t) => t.stop());
-    tabStream = null;
-    micStream = null;
+      // Stop all tracks to release mic indicator and hardware
+      tabStream.getTracks().forEach((t) => t.stop());
+      micStream.getTracks().forEach((t) => t.stop());
+      tabStream = null;
+      micStream = null;
 
-    // Close audio context and clear state
-    audioCtx.close();
-    audioCtx = null;
-    mediaRecorder = null;
-    chunks = [];
+      // Close audio context and clear state
+      audioCtx.close();
+      audioCtx = null;
+      mediaRecorder = null;
+      chunks = [];
 
-    // Trigger download directly from offscreen (avoids chrome.runtime.sendMessage 64 MB IPC limit)
-    // generateFilename() is loaded from utils.js via offscreen.html
-    const filename = generateFilename();
-    const url = URL.createObjectURL(blob);
-    chrome.downloads.download({ url, filename, saveAs: false }, () => {
-      URL.revokeObjectURL(url);
-    });
+      // Trigger download directly from offscreen (avoids chrome.runtime.sendMessage 64 MB IPC limit)
+      // generateFilename() is loaded from utils.js via offscreen.html
+      const filename = generateFilename();
+      const url = URL.createObjectURL(blob);
+      chrome.downloads.download({ url, filename, saveAs: false }, () => {
+        URL.revokeObjectURL(url);
+      });
 
-    // Notify background that recording is done (filename only, not the blob data)
-    chrome.runtime.sendMessage({
-      target: 'background',
-      type: 'RECORDING_COMPLETE',
-      filename,
-    });
+      // Notify background that recording is done (filename only, not the blob data)
+      chrome.runtime.sendMessage({
+        target: 'background',
+        type: 'RECORDING_COMPLETE',
+        filename,
+      });
+    } catch (err) {
+      // Ensure background always learns recording stopped, even if download fails
+      mediaRecorder = null;
+      chunks = [];
+      chrome.runtime.sendMessage({
+        target: 'background',
+        type: 'RECORDING_ERROR',
+        error: 'Failed to save recording: ' + err.message,
+      });
+    }
   };
 
   // Auto-stop if the Meet tab is closed or navigated away
@@ -101,8 +112,9 @@ async function startRecording(streamId) {
     track.onended = () => stopRecording();
   });
 
-  // Use 5-second timeslice so data is released incrementally (reduces memory pressure for long calls)
-  mediaRecorder.start(5000);
+  // 1-second timeslice: releases data incrementally AND keeps the stop-to-save
+  // delay under 1 second (stop() waits for the current slice to flush before onstop fires)
+  mediaRecorder.start(1000);
 
   chrome.runtime.sendMessage({ target: 'background', type: 'RECORDING_STARTED' });
 }

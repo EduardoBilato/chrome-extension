@@ -107,8 +107,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   stopBtn.addEventListener('click', async () => {
     stopping = true;
     stopBtn.disabled = true;
+    // Tell background to update state
     await sendMsg({ target: 'background', type: 'STOP_RECORDING' });
-    // Poll detects isRecording → false and transitions to saved view
+    // Also send directly to offscreen — window→window messaging is more reliable
+    // than the service-worker relay (the worker can suspend before the relay fires)
+    try {
+      await chrome.runtime.sendMessage({ target: 'offscreen', type: 'STOP_RECORDING' });
+    } catch {
+      // Offscreen not alive — recording was already stopped or never started
+    }
   });
 
   newBtn.addEventListener('click', () => {
