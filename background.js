@@ -17,6 +17,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
 
     case 'START_RECORDING':
+      state.lastFilename = null; // clear previous recording on new start
       handleStart(msg.tabId).catch((err) => {
         state.error = String(err.message ?? err);
         state.isRecording = false;
@@ -63,7 +64,7 @@ async function handleStart(tabId) {
   if (existing.length === 0) {
     await chrome.offscreen.createDocument({
       url: 'offscreen.html',
-      reasons: ['USER_MEDIA'],
+      reasons: ['DISPLAY_MEDIA'],
       justification: 'Capture Google Meet tab audio and microphone for recording',
     });
   }
