@@ -16,6 +16,12 @@ describe('formatTime', () => {
   test('pads all segments to 2 digits', () => {
     expect(formatTime(3600)).toBe('01:00:00');
   });
+  test('stays in mm:ss format at 3599 seconds (just below hour boundary)', () => {
+    expect(formatTime(3599)).toBe('59:59');
+  });
+  test('clamps negative input to 00:00', () => {
+    expect(formatTime(-1)).toBe('00:00');
+  });
 });
 
 describe('generateFilename', () => {
@@ -26,5 +32,8 @@ describe('generateFilename', () => {
   test('pads single-digit month, day, hour, minute', () => {
     const date = new Date(2026, 0, 5, 9, 7); // Jan 5 2026, 09:07
     expect(generateFilename(date)).toBe('meet-recording-2026-01-05-09-07.webm');
+  });
+  test('default argument returns a valid filename pattern', () => {
+    expect(generateFilename()).toMatch(/^meet-recording-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}\.webm$/);
   });
 });
