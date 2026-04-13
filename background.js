@@ -18,7 +18,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     case 'START_RECORDING':
       handleStart(msg.tabId).catch((err) => {
-        state.error = err.message;
+        state.error = String(err.message ?? err);
+        state.isRecording = false;
+        state.startTime = null;
       });
       sendResponse({ ok: true });
       return true;
@@ -32,7 +34,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       state.isRecording = true;
       state.startTime = Date.now();
       state.error = null;
-      return true;
+      return;
 
     case 'RECORDING_COMPLETE':
       // Download is triggered directly by offscreen.js (avoids IPC size limits).
@@ -40,13 +42,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       state.isRecording = false;
       state.startTime = null;
       state.lastFilename = msg.filename;
-      return true;
+      return;
 
     case 'RECORDING_ERROR':
       state.isRecording = false;
       state.startTime = null;
-      state.error = msg.error;
-      return true;
+      state.error = String(msg.error ?? 'Unknown error');
+      return;
   }
 });
 
@@ -66,6 +68,14 @@ async function handleStart(tabId) {
     });
   }
 
-  // Tell offscreen to start recording
-  chrome.runtime.sendMessage({ target: 'offscreen', type: 'START_RECORDING', streamId });
+  // Small delay to let offscreen document initialize its message listener
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  // Tell offscreen to start recording — await to catch "no receiver" errors
+  try {
+    await chrome.runtime.sendMessage({ target: 'offscreen', type: 'START_RECORDING', streamId });
+  } catch (err) {
+    // "Could not establish connection" means offscreen isn't ready — rethrow to trigger RECORDING_ERROR
+    throw new Error(`Failed to reach offscreen document: ${err.message}`);
+  }
 }
